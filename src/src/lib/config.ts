@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-interface Config {
+export interface Config {
   smtp: {
     incoming: {
       host: string;
@@ -19,6 +19,9 @@ interface Config {
   };
   logging: {
     level: string;
+  };
+  aggregator: {
+    // Add any aggregator-specific config options here
   };
 }
 
@@ -49,12 +52,15 @@ try {
     logging: {
       level: process.env.LOG_LEVEL || 'info',
     },
+    aggregator: {
+      // Add any aggregator-specific config options here
+    },
   };
 }
 
 export { config };
 
 export function configSanityCheck(): boolean {
-  // Implement your sanity check logic here
+  // Implement your config sanity check logic here
   return true;
 }

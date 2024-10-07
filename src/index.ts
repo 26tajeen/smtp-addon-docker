@@ -1,83 +1,57 @@
-import { config } from './src/lib/config';
-import { logger } from './src/lib/logger';
+import { config } from './lib/config';
+import { logger } from './lib/logger';
 import { SMTPServer } from 'smtp-server';
 import { simpleParser } from 'mailparser';
-import { aggregator } from './src/lib/aggregator';
+import * as nodemailer from 'nodemailer';
+import { aggregator } from './lib/aggregator';
 
-// Load configuration from environment variables or a config file
-const options = {
-  host: process.env.SMTP_HOST || 'localhost',
-  port: parseInt(process.env.SMTP_PORT || '25', 10),
-  // Add other configuration options here
-};
+// Configure logger
+logger.level = config.logging.level;
 
-// Setup logger
-const logger = winston.createLogger({
-  level: options.log_level || 'info',
-  format: winston.format.simple(),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: '/data/smtp_aggregator.log' })
-  ]
+// Configure outgoing SMTP transport
+const transporter = nodemailer.createTransport({
+  host: config.smtp.outgoing.host,
+  port: config.smtp.outgoing.port,
+  secure: config.smtp.outgoing.secure,
+  auth: {
+    user: config.smtp.outgoing.auth.user,
+    pass: config.smtp.outgoing.auth.pass
+  }
 });
 
-// Outgoing email configuration
-const outgoingConfig = {
-  host: options.outgoing_host,
-  port: options.outgoing_port,
-  secure: options.outgoing_secure,
-  auth: {
-    user: options.outgoing_auth_user,
-    pass: options.outgoing_auth_pass
-  }
-};
-
-// Create a nodemailer transporter
-const transporter = nodemailer.createTransport(outgoingConfig);
-
-// Modify your server setup to use the configuration
+// Configure incoming SMTP server
 const server = new SMTPServer({
   authOptional: true,
-    onData(stream, session, callback) {
-    simpleParser(stream, {}, (err, parsed: ParsedMail) => {
+  disabledCommands: ['AUTH'],
+  onData(stream, session, callback) {
+    simpleParser(stream, {}, (err, parsed) => {
       if (err) {
         logger.error('Error parsing email:', err);
         return callback(err);
       }
 
-      const toAddress = Array.isArray(parsed.to) 
-        ? parsed.to.map(to => to.text).join(', ')
-        : parsed.to?.text || '';
-
-      const convertAttachment = (att: MailparserAttachment): NodemailerAttachment => ({
-        filename: att.filename,
-        content: att.content,
-        contentType: att.contentType,
-        contentDisposition: att.contentDisposition as "attachment" | "inline" | undefined,
-      });
-
-      const mailOptions: nodemailer.SendMailOptions = {
-        from: parsed.from?.text,
-        to: toAddress,
-        subject: parsed.subject,
-        text: parsed.text,
-        html: parsed.html || undefined,
-        attachments: parsed.attachments?.map(convertAttachment) || []
-      };
-
-      transporter.sendMail(mailOptions, (error) => {
-        if (error) {
-          logger.error('Error forwarding email:', error);
-          return callback(error);
-        }
-        logger.info(`Forwarded email to: ${toAddress}`);
+      logger.info('Received email:', parsed.subject);
+      
+      // Use the aggregator to process the email
+      aggregator.processEmail(parsed).then(() => {
         callback();
+      }).catch((error) => {
+        logger.error('Error processing email:', error);
+        callback(error);
       });
     });
-  },
+  }
 });
 
 // Start the server
-server.listen(options.smtp_port || 25, () => {
-  logger.info(`SMTP server is running on port ${options.smtp_port || 25}`);
+server.listen(config.smtp.incoming.port, () => {
+  logger.info(`SMTP server is running on port ${config.smtp.incoming.port}`);
+});
+
+// Handle shutdown gracefully
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    logger.info('HTTP server closed');
+  });
 });
