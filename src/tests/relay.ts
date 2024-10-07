@@ -76,6 +76,13 @@ const server = new SMTPServer({
         authOptional: true,
         hideSTARTTLS: true
     });
+    
+    const incomingServer = new SMTPServer({
+  name: config.smtp.incoming.host,
+  port: config.smtp.incoming.port,
+  // ... rest of the server configuration
+});
+
         
     incomingServer.listen(config.incoming.port,config.incoming.host,() => 
     {

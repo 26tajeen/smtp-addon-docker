@@ -19,6 +19,16 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+const smtpOptions = {
+  host: config.smtp.outgoing.host,
+  port: config.smtp.outgoing.port,
+  secure: config.smtp.outgoing.secure,
+  auth: {
+    user: config.smtp.outgoing.auth.user,
+    pass: config.smtp.outgoing.auth.pass
+  }
+};
+
 // Configure incoming SMTP server
 const server = new SMTPServer({
   authOptional: true,
