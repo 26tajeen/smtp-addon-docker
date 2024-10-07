@@ -1,0 +1,54 @@
+name: "SMTP Email Aggregator"
+version: "1.0.0"
+slug: "smtp_email_aggregator"
+description: "Listens for incoming emails, aggregates matching pairs, and forwards to Gmail"
+url: "https://github.com/26tajeen/smtp-addon"
+arch:
+  - armhf
+  - armv7
+  - aarch64
+  - amd64
+  - i386
+startup: application
+boot: auto
+ports:
+  25/tcp: 25
+  587/tcp: 587
+host_network: true
+init: false
+options:
+  outgoing_host: "smtp.example.com"
+  outgoing_port: 465
+  outgoing_secure: true
+  outgoing_auth_user: "someuser"
+  outgoing_auth_pass: "somepassword"
+  incoming_host: "0.0.0.0"
+  incoming_port: 5025
+  aggregate_subject: "Consolidated Invoice and Statement for {name}"
+  aggregate_bodyFile: "body.txt"
+  aggregate_waitForUpToMinutes: 5
+  aggregate_checkExpiryEverySeconds: 10
+  sendQueue_threads: 3
+  sendQueue_pollIntervalSeconds: 5
+  sendQueue_failure_retries: 5
+  sendQueue_failure_pauseMinutes: 1
+  logging_combined_enabled: true
+  logging_combined_file: "logs/combined.log"
+schema:
+  outgoing_host: str
+  outgoing_port: port
+  outgoing_secure: bool
+  outgoing_auth_user: str
+  outgoing_auth_pass: str
+  incoming_host: str
+  incoming_port: port
+  aggregate_subject: str
+  aggregate_bodyFile: str
+  aggregate_waitForUpToMinutes: int(1,)
+  aggregate_checkExpiryEverySeconds: int(1,)
+  sendQueue_threads: int(1,)
+  sendQueue_pollIntervalSeconds: int(1,)
+  sendQueue_failure_retries: int(1,)
+  sendQueue_failure_pauseMinutes: int(1,)
+  logging_combined_enabled: bool
+  logging_combined_file: str

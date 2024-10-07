@@ -1,0 +1,5 @@
+Dear {name},
+
+Please find attached your latest invoices and statement from ________.
+
+Thank you for spending with us.
