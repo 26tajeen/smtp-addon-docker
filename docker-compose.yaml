@@ -1,0 +1,13 @@
+version: '3'
+services:
+  smtp-relay:
+    build: .
+    ports:
+      - "25:25"
+    environment:
+      - SMTP_HOST=0.0.0.0
+      - SMTP_PORT=25
+      # Add other environment variables here
+    volumes:
+      - ./config:/usr/src/app/config
+      # Add other volume mounts if needed

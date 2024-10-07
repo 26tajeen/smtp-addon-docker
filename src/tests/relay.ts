@@ -1,9 +1,9 @@
 import { SMTPServer } from "smtp-server";
 import { simpleParser } from "mailparser";
-import { config, configSanityCheck } from '../src/lib/config';
-import { logger } from '../src/lib/logger';
-import { sender } from '../src/lib/sender';
-import { streamToString } from '../src/lib/misc';
+import { config, configSanityCheck } from '../lib/config';
+import { logger } from '../lib/logger';
+import { sender } from '../lib/sender';
+import { streamToString } from '../lib/misc';
 
 
 export const run = async () => 
@@ -16,7 +16,10 @@ export const run = async () =>
         return;
     }
 
-    const incomingServer = new SMTPServer({
+const server = new SMTPServer({
+  // Update these lines
+  host: config.smtp.incoming.host,
+  port: config.smtp.incoming.port,
         async onData(stream,session,callback) 
         {
             const rawbody = await streamToString(stream);

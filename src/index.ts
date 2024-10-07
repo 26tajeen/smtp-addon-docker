@@ -1,14 +1,15 @@
+import { config } from './src/lib/config';
+import { logger } from './src/lib/logger';
 import { SMTPServer } from 'smtp-server';
-import { simpleParser, ParsedMail, Attachment as MailparserAttachment } from 'mailparser';
-import nodemailer from 'nodemailer';
-import { Attachment as NodemailerAttachment } from 'nodemailer/lib/mailer';
-import winston from 'winston';
-import * as fs from 'fs-extra';
-import * as path from 'path';
+import { simpleParser } from 'mailparser';
+import { aggregator } from './src/lib/aggregator';
 
-
-// Read Home Assistant add-on configuration
-const options = JSON.parse(fs.readFileSync('/data/options.json', 'utf8'));
+// Load configuration from environment variables or a config file
+const options = {
+  host: process.env.SMTP_HOST || 'localhost',
+  port: parseInt(process.env.SMTP_PORT || '25', 10),
+  // Add other configuration options here
+};
 
 // Setup logger
 const logger = winston.createLogger({
