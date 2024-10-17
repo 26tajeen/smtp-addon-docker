@@ -1,0 +1,31 @@
+{
+  "name": "smtp_email_aggregator",
+  "version": "1.0.1",
+  "description": "SMTP server that aggregates and relays emails",
+  "main": "dist/smtp_email_aggregator/server.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "nodemailer": "^6.9.15",
+    "smtp-server": "^3.13.5",
+    "winston": "^3.15.0",
+    "js-yaml": "^4.1.0",
+    "fs-extra": "^10.1.0",
+    "mailparser": "^3.6.5",
+    "yaml": "^2.2.1"    
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.13",
+    "@types/node": "^20.11.30",
+    "@types/nodemailer": "^6.4.14",
+    "@types/js-yaml": "^4.0.9",
+    "@types/fs-extra": "^9.0.13",
+    "@types/mailparser": "^3.4.4",
+    "typescript": "^5.4.3"
+  }
+}
+
+

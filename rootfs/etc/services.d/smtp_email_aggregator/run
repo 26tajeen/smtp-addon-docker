@@ -1,0 +1,52 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Start the SMTP Email Aggregator service
+# ==============================================================================
+
+# Change to the correct directory
+chmod 644 /smtp_email_aggregator/config.yaml
+
+
+# Export configuration
+export OUTGOING_HOST="$(bashio::config 'outgoing_host')"
+export OUTGOING_PORT="$(bashio::config 'outgoing_port')"
+export OUTGOING_SECURE="$(bashio::config 'outgoing_secure')"
+export OUTGOING_AUTH_USER="$(bashio::config 'outgoing_auth_user')"
+export OUTGOING_AUTH_PASS="$(bashio::config 'outgoing_auth_pass')"
+export INCOMING_HOST="$(bashio::config 'incoming_host')"
+export INCOMING_PORT="$(bashio::config 'incoming_port')"
+export AGGREGATE_SUBJECT="$(bashio::config 'aggregate_subject')"
+export AGGREGATE_BODY_FILE="$(bashio::config 'aggregate_bodyFile')"
+export AGGREGATE_WAIT_MINUTES="$(bashio::config 'aggregate_waitForUpToMinutes')"
+export AGGREGATE_CHECK_SECONDS="$(bashio::config 'aggregate_checkExpiryEverySeconds')"
+export SEND_QUEUE_THREADS="$(bashio::config 'sendQueue_threads')"
+export SEND_QUEUE_POLL_SECONDS="$(bashio::config 'sendQueue_pollIntervalSeconds')"
+export SEND_QUEUE_RETRIES="$(bashio::config 'sendQueue_failure_retries')"
+export SEND_QUEUE_PAUSE_MINUTES="$(bashio::config 'sendQueue_failure_pauseMinutes')"
+
+
+
+cd /smtp_email_aggregator
+
+bashio::log.info "Current directory: $(pwd)"
+bashio::log.info "Contents of current directory:"
+ls -la
+
+bashio::log.info "Contents of /smtp_email_aggregator:"
+ls -R /smtp_email_aggregator
+
+bashio::log.info "Contents of /smtp_email_aggregator/dist:"
+ls -R /smtp_email_aggregator/dist || echo "dist directory not found"
+
+bashio::log.info "Contents of /smtp_email_aggregator/src:"
+ls -R /smtp_email_aggregator/src || echo "src directory not found"
+
+if [ -f "dist/index.js" ]; then
+    exec node dist/index.js
+elif [ -f "index.js" ]; then
+    exec node index.js
+else
+    bashio::log.error "Cannot find the entry point. Listing directory contents:"
+    ls -R
+    exit 1
+fi

@@ -1,0 +1,20 @@
+{
+  "smtp": {
+    "incoming": {
+      "host": "0.0.0.0",
+      "port": 25
+    },
+    "outgoing": {
+      "host": "smtp.example.com",
+      "port": 587,
+      "secure": false,
+      "auth": {
+        "user": "your_username",
+        "pass": "your_password"
+      }
+    }
+  },
+  "logging": {
+    "level": "info"
+  }
+}

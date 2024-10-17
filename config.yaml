@@ -1,0 +1,49 @@
+name: "SMTP Email Aggregator"
+version: "1.0.1"
+slug: "smtp_email_aggregator"
+init: false
+description: "SMTP server that aggregates and relays emails"
+url: "https://github.com/yourusername/smtp_email_aggregator_addon"
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+startup: application
+boot: auto
+ports:
+  5025/tcp: 5025
+host_network: true
+options:
+  outgoing_host: "smtp.example.com"
+  outgoing_port: 587
+  outgoing_secure: false
+  outgoing_auth_user: ""
+  outgoing_auth_pass: ""
+  incoming_host: "0.0.0.0"
+  incoming_port: 5025
+  aggregate_subject: "Consolidated Invoice and Statement for {name}"
+  aggregate_bodyFile: "body.txt"
+  aggregate_waitForUpToMinutes: 5
+  aggregate_checkExpiryEverySeconds: 10
+  sendQueue_threads: 3
+  sendQueue_pollIntervalSeconds: 5
+  sendQueue_failure_retries: 5
+  sendQueue_failure_pauseMinutes: 1
+schema:
+  outgoing_host: str
+  outgoing_port: port
+  outgoing_secure: bool
+  outgoing_auth_user: str
+  outgoing_auth_pass: password
+  incoming_host: str
+  incoming_port: port
+  aggregate_subject: str
+  aggregate_bodyFile: str
+  aggregate_waitForUpToMinutes: int(1,)
+  aggregate_checkExpiryEverySeconds: int(1,)
+  sendQueue_threads: int(1,)
+  sendQueue_pollIntervalSeconds: int(1,)
+  sendQueue_failure_retries: int(1,)
+  sendQueue_failure_pauseMinutes: int(1,)
