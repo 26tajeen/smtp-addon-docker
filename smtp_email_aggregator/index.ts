@@ -1,11 +1,20 @@
 import { SMTPServer } from 'smtp-server';
 import { simpleParser, AddressObject, EmailAddress } from 'mailparser';
-import * as nodemailer from 'nodemailer';
 import config from './src/lib/config';
 import { logger } from './src/lib/logger';
 import { aggregator } from './src/lib/aggregator';
 import { sendQueue } from './src/lib/send_queue';
 import { checker } from './src/lib/checker';
+import { ensureDirectoriesExist } from './src/lib/paths';
+import { transporter, transportConfig } from './src/lib/smtp';
+import { mqtt } from './src/lib/mqtt';
+
+ensureDirectoriesExist();
+
+interface SMTPError extends Error {
+    code?: string;
+    command?: string;
+}
 
 // Helper function to get email address string
 function getEmailAddress(address: string | AddressObject | EmailAddress | (string | AddressObject | EmailAddress)[] | undefined): string {
@@ -18,63 +27,115 @@ function getEmailAddress(address: string | AddressObject | EmailAddress | (strin
         } else if (firstAddress && 'address' in firstAddress) {
             return firstAddress.address || '';
         }
-    } else if (address && typeof address === 'object') {
-        if ('address' in address) {
-            return address.address || '';
-        }
+    } else if (address && typeof address === 'object' && 'address' in address) {
+        return address.address || '';
     }
-    return ''; // Return an empty string if no valid address is found
+    return '';
 }
 
-// Safely get config values with defaults
-const options = config.options || {};
-
-// Outgoing email configuration
-const transportConfig = {
-    host: options.outgoing_host || 'localhost',
-    port: options.outgoing_port || 25,
-    secure: options.outgoing_secure || false,
-    auth: {
-        user: options.outgoing_auth_user || '',
-        pass: options.outgoing_auth_pass || ''
-    }
-};
-
-// Log the configuration (without sensitive info)
-logger.info('Outgoing SMTP Configuration:', {
-    host: transportConfig.host,
-    port: transportConfig.port,
-    secure: transportConfig.secure,
-    auth: {
-        user: transportConfig.auth.user ? '****' : 'not set',
-        pass: transportConfig.auth.pass ? '****' : 'not set'
-    }
-});
-
-// Create a nodemailer transporter
-const transporter = nodemailer.createTransport(transportConfig);
-
-// Modify your server setup to use the configuration
 const server = new SMTPServer({
-  authOptional: true,
-  onData(stream, session, callback) {
-    const from = session.envelope.mailFrom ? session.envelope.mailFrom.address : "";
-    const to = session.envelope.rcptTo.map(({address}) => address).join(",");
-    
-    logger.debug(`SERVER received message with header: ${JSON.stringify({ from, to })}`);
-    
-    aggregator.addMessage({ from, to }, stream);
-    callback();
-  }
+    authOptional: true,
+    onRcptTo(address, session, callback) {
+        logger.debug("SMTP: Recipient validation:", {
+            address: address.address,
+            session_id: session.id,
+            client: session.remoteAddress
+        });
+        callback();
+    },
+    onMailFrom(address, session, callback) {
+        logger.debug("SMTP: Sender validation:", {
+            address: address.address,
+            session_id: session.id,
+            client: session.remoteAddress
+        });
+        if (!address.address.includes('@')) {
+            logger.error("SMTP: Invalid sender address:", address.address);
+            return callback(new Error('Invalid sender address format'));
+        }
+        callback();
+    },
+    async onData(stream, session, callback) {
+        try {
+            const from = session.envelope.mailFrom?.address || '';
+            const to = session.envelope.rcptTo.map(({address}) => address).join(',');
+            
+            logger.info(`Receiving message: from=${from}, to=${to}`);
+            mqtt.incrementStats('messages_received');
+
+            await aggregator.addMessage({ from, to }, stream);
+            callback();
+        } catch (error) {
+            logger.error('Error processing incoming message:', error);
+            callback(new Error('Error processing message'));
+        }
+    }
 });
 
-// Start the server
-const incomingPort = options.incoming_port || 25;
-const incomingHost = options.incoming_host || '0.0.0.0';
+// Add error event handler explicitly
+(server as any).on('error', function(err) {
+    logger.error("SMTP Server Error:", {
+        message: err.message,
+        code: err.code,
+        stack: err.stack
+    });
+});
+
+// Start the server with proper port binding
+const incomingPort = config.options.incoming_port || 5025;
+const incomingHost = config.options.incoming_host || '0.0.0.0';
+
 server.listen(incomingPort, incomingHost, () => {
-    logger.info(`SMTP server is running on ${incomingHost}:${incomingPort}`);
+    logger.info(`SMTP server listening on ${incomingHost}:${incomingPort}`);
+});
+mqtt.publishStatus('online');
+
+
+// Handle server errors with proper typing
+(server as any).on('error', (err: SMTPError) => {
+    logger.error('SMTP server error:', {
+        message: err.message,
+        code: err.code,
+        command: err.command,
+        stack: err.stack
+    });
 });
 
-// Start the send queue and checker
+// Verify SMTP configuration
+logger.info('SMTP Configuration:', {
+    mode: config.options.smtp_mode,
+    mailpitHost: config.options.smtp_config_mailpit_host,
+    productionHost: config.options.smtp_config_outgoing_host,
+    incomingPort: incomingPort,
+    incomingHost: incomingHost
+});
+
+// Start services
 sendQueue.start();
 checker.start();
+mqtt.publishDiscovery();
+
+
+process.on('SIGTERM', () => {
+    logger.info('Received SIGTERM signal, shutting down...');
+    mqtt.publishStatus('offline');
+    mqtt.shutdown();
+    server.close(() => {
+        process.exit(0);
+    });
+});
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+    logger.error('Uncaught exception:', {
+        message: error.message,
+        stack: error.stack
+    });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled rejection:', {
+        reason: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined
+    });
+});

@@ -17,8 +17,6 @@ COPY smtp_email_aggregator/package*.json ./
 RUN npm install
 RUN npm install --save-dev @types/smtp-server
 
-
-
 # Copy the entire project
 COPY smtp_email_aggregator ./
 
@@ -35,8 +33,9 @@ RUN echo "Contents of dist directory:" && \
 
 # Copy root filesystem
 COPY rootfs /
-RUN chmod a+x /etc/services.d/smtp_email_aggregator/run
 
+RUN chmod a+x /etc/services.d/smtp_email_aggregator/run && \
+    chmod a+x /etc/cont-init.d/setup-postfix.sh
 
 # Copy config.yaml to the root
 COPY config.yaml /smtp_email_aggregator/
@@ -48,6 +47,19 @@ RUN echo "TypeScript version:" && npx tsc --version && \
 # Make run script executable
 RUN chmod a+x /etc/services.d/smtp_email_aggregator/run
 
+# Install Postfix and required packages
+RUN apk add --no-cache \
+    postfix \
+    cyrus-sasl \
+    libsasl \
+    ca-certificates \
+    openssl && \
+    mkdir -p /var/spool/postfix && \
+    mkdir -p /var/lib/postfix && \
+    mkdir -p /etc/postfix && \
+    chown -R root:root /etc/postfix && \
+    chmod -R 755 /etc/postfix
+    
 # Build arguments and labels (as in your provided Dockerfile)
 ARG BUILD_ARCH
 ARG BUILD_DATE

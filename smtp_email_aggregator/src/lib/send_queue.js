@@ -1,6 +1,18 @@
 "use strict";
 var config_1 = require("./config");
 var config = config_1.default;
+var mailparser_1 = require("mailparser");  // Added this import
+const { logger } = require('./logger');
+var fs_extra_1 = require("fs-extra");
+var stream_1 = require("stream");
+var paths_1 = require("./paths");
+var path_1 = require("path");
+var misc_1 = require("./misc");
+var jobs_1 = require("./jobs");
+var sender_1 = require("./sender");
+import { mqtt } from './mqtt';
+
+
 
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -72,141 +84,166 @@ var SendQueue = /** @class */ (function () {
         this.currentQueue = new jobs_1.Jobs();
         this.isPolling = false;
         this.pollingQueue = [];
-        this.failedCount = 0;
         this.isPaused = false;
-        this.pauseQueue = [];
-    }
-    SendQueue.prototype.add = function (header, body) {
-        return __awaiter(this, void 0, void 0, function () {
-            var key, prePath, finalPath, headerPath, bodyPath, wstream_1;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        key = (0, misc_1.generateRandomKey)();
-                        prePath = (0, path_1.join)(paths_1.queuePath, "__".concat(key, "__"));
-                        finalPath = (0, path_1.join)(paths_1.queuePath, key);
-                        headerPath = (0, path_1.join)(prePath, "header");
-                        bodyPath = (0, path_1.join)(prePath, "body");
-                        return [4 /*yield*/, (0, fs_extra_1.ensureDir)(prePath)];
-                    case 1:
-                        _a.sent();
-                        return [4 /*yield*/, (0, fs_extra_1.writeFile)(headerPath, JSON.stringify(header, null, 2))];
-                    case 2:
-                        _a.sent();
-                        if (!(body instanceof stream_1.Stream)) return [3 /*break*/, 4];
-                        wstream_1 = (0, fs_extra_1.createWriteStream)(bodyPath);
-                        return [4 /*yield*/, new Promise(function (resolve, reject) {
-                                body.pipe(wstream_1);
-                                wstream_1.on("error", reject);
-                                wstream_1.on("close", resolve);
-                            })];
-                    case 3:
-                        _a.sent();
-                        return [3 /*break*/, 6];
-                    case 4: return [4 /*yield*/, (0, fs_extra_1.writeFile)(bodyPath, body)];
-                    case 5:
-                        _a.sent();
-                        _a.label = 6;
-                    case 6: return [4 /*yield*/, (0, fs_extra_1.move)(prePath, finalPath)];
-                    case 7:
-                        _a.sent();
-                        return [2 /*return*/];
-                }
-            });
-        });
-    };
-    SendQueue.prototype.getJob = function (index) {
-        return __awaiter(this, void 0, void 0, function () {
-            var _this = this;
-            var job, next;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        if (this.isPaused) {
-                            return [2 /*return*/, new Promise(function (resolve) {
-                                logger_1.logger.debug("SEND-QUEUE ".concat(index, ": is paused, adding resolve to pause queue"));
-                                _this.pauseQueue.push({ resolve: resolve, index: index });
-                            })];
-                        }
-                        if (this.isPolling) {
-                            return [2 /*return*/, new Promise(function (resolve) {
-                                logger_1.logger.debug("SEND-QUEUE ".concat(index, ": is polling, adding resolve to polling queue"));
-                                _this.pollingQueue.push({ resolve: resolve, index: index });
-                            })];
-                        }
-                        job = this.currentQueue.items.shift();
-                        if (job) {
-                            logger_1.logger.debug("SEND-QUEUE ".concat(index, ": job found directly"));
-                            return [2 /*return*/, job];
-                        }
-                        logger_1.logger.debug("SEND-QUEUE ".concat(index, ": entering polling state"));
-                        this.isPolling = true;
-                        return [4 /*yield*/, new Promise(function (resolve) {
-                            logger_1.logger.debug("SEND-QUEUE ".concat(index, ": adding main resolve to polling queue"));
-                            _this.pollingQueue.push({ resolve: resolve, index: index });
-                            next = function () { return __awaiter(_this, void 0, void 0, function () {
-                                var _a, i, rawmessage;
-                                return __generator(this, function (_b) {
-                                    switch (_b.label) {
-                                        case 0:
-                                            _a = this;
-                                            return [4 /*yield*/, jobs_1.Jobs.load()];
-                                        case 1:
-                                            _a.currentQueue = _b.sent();
-                                            if (!(this.currentQueue.items.length > 0)) return [3 /*break*/, 6];
-                                            logger_1.logger.debug("SEND-QUEUE ".concat(index, ": polling found ").concat(this.currentQueue.items.length, " jobs, blocking all"));
-                                            i = 0;
-                                            _b.label = 2;
-                                        case 2:
-                                            if (!(i < this.currentQueue.items.length)) return [3 /*break*/, 5];
-                                            rawmessage = this.currentQueue.items[i];
-                                            return [4 /*yield*/, rawmessage.loadSimulatedErrorCount()];
-                                        case 3:
-                                            _b.sent();
-                                            rawmessage.block();
-                                            _b.label = 4;
-                                        case 4:
-                                            i++;
-                                            return [3 /*break*/, 2];
-                                        case 5:
-                                            this.clearPollingState(index);
-                                            return [3 /*break*/, 7];
-                                        case 6:
-                                            logger_1.logger.debug("SEND-QUEUE ".concat(index, ": job not found, polling, waiting ").concat(config.sendQueue.pollIntervalSeconds, " seconds"));
-                                            setTimeout(next, config.sendQueue.pollIntervalSeconds * 1000);
-                                            _b.label = 7;
-                                        case 7: return [2 /*return*/];
-                                    }
-                                });
-                            }); };
-                            logger_1.logger.debug("SEND-QUEUE ".concat(index, ": job not found, polling"));
-                            next();
-                        })];
-                    case 1: return [2 /*return*/, _a.sent()];
-                }
-            });
-        });
-    };
-    SendQueue.prototype.clearPauseState = function (index) {
-        var _this = this;
         this.failedCount = 0;
-        logger_1.logger.debug("SEND-QUEUE ".concat(index, ": clearing pause state"));
-        if (this.isPaused) {
-            logger_1.logger.debug("SEND-QUEUE ".concat(index, ": clearing pause state: is actually paused"));
-            if (this.pausedTimeout) {
-                clearTimeout(this.pausedTimeout);
-                this.pausedTimeout = undefined;
+        this.pauseQueue = [];
+        this.threads = config.sendQueue.threads;
+        this.pollIntervalSeconds = config.sendQueue.pollIntervalSeconds;
+        this.failureRetries = config.sendQueue.failure.retries;
+        this.failurePauseMinutes = config.sendQueue.failure.pauseMinutes;
+    }
+SendQueue.prototype.add = function (header, body) {
+    return __awaiter(this, void 0, void 0, function () {
+        var key, prePath, finalPath, headerPath, bodyPath, wstream_1;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    logger.debug(`SendQueue.add received body of type: ${typeof body}`);
+                    key = (0, misc_1.generateRandomKey)();
+                    prePath = (0, path_1.join)(paths_1.queuePath, "__".concat(key, "__"));
+                    finalPath = (0, path_1.join)(paths_1.queuePath, key);
+                    headerPath = (0, path_1.join)(prePath, "header");
+                    bodyPath = (0, path_1.join)(prePath, "body");
+                    return [4 /*yield*/, (0, fs_extra_1.ensureDir)(prePath)];
+                case 1:
+                    _a.sent();
+                    return [4 /*yield*/, (0, fs_extra_1.writeFile)(headerPath, JSON.stringify(header, null, 2))];
+                case 2:
+                    _a.sent();
+                    if (!(body instanceof stream_1.Stream)) return [3 /*break*/, 4];
+                    wstream_1 = (0, fs_extra_1.createWriteStream)(bodyPath);
+                    return [4 /*yield*/, new Promise(function (resolve, reject) {
+                        body.pipe(wstream_1);
+                        wstream_1.on("error", reject);
+                        wstream_1.on("close", resolve);
+                    })];
+                case 3:
+                    _a.sent();
+                    return [3 /*break*/, 6];
+                case 4: return [4 /*yield*/, (0, fs_extra_1.writeFile)(bodyPath, body)];
+                case 5:
+                    _a.sent();
+                    _a.label = 6;
+                case 6: return [4 /*yield*/, (0, fs_extra_1.move)(prePath, finalPath)];
+                case 7:
+                    _a.sent();
+                    logger.debug(`SendQueue.add: Email queued with key ${key}`);
+                    mqtt.recordEmailSent(false); // Record standalone email
+                    mqtt.incrementStats('messages_queued');
+                    return [2 /*return*/];
             }
-            this.isPaused = false;
-            var pauseQueue = __spreadArray([], this.pauseQueue, true);
-            this.pauseQueue.length = 0;
-            logger_1.logger.debug("SEND-QUEUE ".concat(index, ": clearing pause state: pause queue length: ").concat(pauseQueue.length, ", restoring}"));
-            pauseQueue.forEach(function (_a) {
-                var resolve = _a.resolve, index = _a.index;
-                _this.getJob(index).then(resolve);
-            });
+        });
+    });
+};
+SendQueue.prototype.getJob = function (index) {
+    return __awaiter(this, void 0, void 0, function () {
+        var _this = this;
+        var job;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    if (this.isPaused) {
+                        logger.debug(`SEND-QUEUE ${index}: paused, adding to pause queue`);
+                        return [2 /*return*/, new Promise(function (resolve) {
+                            _this.pauseQueue.push({ resolve: resolve, index: index });
+                        })];
+                    }
+                    if (this.isPolling) {
+                        logger.debug(`SEND-QUEUE ${index}: polling, adding to polling queue`);
+                        return [2 /*return*/, new Promise(function (resolve) {
+                            _this.pollingQueue.push({ resolve: resolve, index: index });
+                        })];
+                    }
+                    job = this.currentQueue.items.shift();
+                    if (job) {
+                        logger.debug(`SEND-QUEUE ${index}: job found`);
+                        return [2 /*return*/, job];
+                    }
+                    logger.debug(`SEND-QUEUE ${index}: no jobs, starting poll`);
+                    this.isPolling = true;
+                    return [4 /*yield*/, new Promise(function (resolve) {
+                        logger_1.logger.debug("SEND-QUEUE ".concat(index, ": adding main resolve to polling queue"));
+                        _this.pollingQueue.push({ resolve: resolve, index: index });
+                        
+                        const next = async function () {
+                            try {
+                                _this.currentQueue = await jobs_1.Jobs.load();
+                                if (_this.currentQueue.items.length > 0) {
+                                    for (let i = 0; i < _this.currentQueue.items.length; i++) {
+                                        const rawmessage = _this.currentQueue.items[i];
+                                        rawmessage.block();
+                                    }
+                                    _this.clearPollingState(index);
+                                } else {
+                                    logger_1.logger.debug("SEND-QUEUE ".concat(index, ": job not found, polling, waiting ").concat(config_1.config.sendQueue.pollIntervalSeconds, " seconds"));
+                                    setTimeout(next, config_1.config.sendQueue.pollIntervalSeconds * 1000);
+                                }
+                            } catch (error) {
+                                logger_1.logger.error("Error in next function: " + error.message);
+                                // Continue polling even if an error occurs
+                                setTimeout(next, config_1.config.sendQueue.pollIntervalSeconds * 1000);
+                            }
+                        };
+                        
+                        logger_1.logger.debug("SEND-QUEUE ".concat(index, ": job not found, polling"));
+                        next();  // Start the polling loop
+                    })];
+                case 1:
+                    return [2 /*return*/, _a.sent()];
+            }
+        });
+    });
+};
+
+SendQueue.prototype.parseRawEmail = function(rawContent) {
+    logger_1.logger.debug('Raw email content:', rawContent);
+    
+    const headerEndIndex = rawContent.indexOf('\n\n');
+    const headers = {};
+    let body = '';
+
+    if (headerEndIndex !== -1) {
+        const headerPart = rawContent.slice(0, headerEndIndex);
+        body = rawContent.slice(headerEndIndex + 2);
+
+        // Parse headers
+        const headerLines = headerPart.split('\n');
+        for (const line of headerLines) {
+            const [key, value] = line.split(':').map(s => s.trim());
+            if (key && value) {
+                headers[key.toLowerCase()] = value;
+            }
         }
+    } else {
+        body = rawContent;
+    }
+
+    logger_1.logger.debug('Parsed headers:', headers);
+    logger_1.logger.debug('Parsed body:', body);
+
+    return {
+        subject: headers['subject'] || '',
+        body: body,
+        headers: headers
     };
+};
+
+SendQueue.prototype.clearPauseState = function (index) {
+    this.failedCount = 0;
+    if (this.isPaused) {
+        logger.debug(`SEND-QUEUE ${index}: resuming from pause`);
+        if (this.pausedTimeout) {
+            clearTimeout(this.pausedTimeout);
+            this.pausedTimeout = undefined;
+        }
+        this.isPaused = false;
+        const pauseQueue = [...this.pauseQueue];
+        this.pauseQueue.length = 0;
+        pauseQueue.forEach(({ resolve, index }) => {
+            this.getJob(index).then(resolve);
+        });
+    }
+};
     SendQueue.prototype.clearPollingState = function (index) {
         var _this = this;
         logger_1.logger.debug("SEND-QUEUE ".concat(index, ": clearing polling state"));
@@ -222,93 +259,106 @@ var SendQueue = /** @class */ (function () {
             });
         }
     };
-    SendQueue.prototype.reportSuccess = function (index, to) {
-        logger_1.logger.debug("SEND-QUEUE ".concat(index, ": email sent to: ").concat(to));
-        logger_1.logger.info("email sent to: ".concat(to));
-        this.clearPauseState(index);
-    };
-    SendQueue.prototype.reportError = function (index, rawmessage, message, id) {
+  
+SendQueue.prototype.reportSuccess = function (index, to) {
+    const startTime = Date.now(); // Add at beginning of email processing
+    const processingTime = Date.now() - startTime;
+    logger.info(`Email successfully sent to: ${to}`);
+    mqtt.incrementStats('messages_sent');
+    mqtt.recordMessageProcessingTime(processingTime);
+    this.clearPauseState(index);
+};
+
+SendQueue.prototype.reportError = function (index, rawmessage, message, id) {
+    logger.error(`Failed to send message ${id}: ${message}`);
+    mqtt.reportError(`Send queue error: ${message}`);
+    mqtt.incrementStats('messages_failed');
+    mqtt.reportError(message); // Changed from error to message
+    this.currentQueue.items.push(rawmessage);
+    this.failedCount++;
+    
+    if (this.failedCount === config.sendQueue.failure.retries) {
+        logger.warn(`Send queue pausing for ${config.sendQueue.failure.pauseMinutes} minute(s) after ${this.failedCount} failures`);
+        this.isPaused = true;
+        this.pausedTimeout = setTimeout(() => this.clearPauseState(index), 
+            config.sendQueue.failure.pauseMinutes * 60 * 1000);
+    }
+};
+
+SendQueue.prototype.thread = function (index) {
+    return __awaiter(this, void 0, void 0, function () {
+        var rawmessage, envelope, mailOptions, err_1;
         var _this = this;
-        logger_1.logger.debug("SEND-QUEUE ".concat(index, ": unable to send message with id: ").concat(id, "; failed with message: ").concat(message));
-        logger_1.logger.error("unable to send message with id: ".concat(id, "; failed with message: ").concat(message));
-        this.currentQueue.items.push(rawmessage);
-        this.failedCount++;
-        if (this.failedCount === config_1.config.sendQueue.failure.retries) {
-            logger_1.logger.debug("SEND-QUEUE ".concat(index, ": initiating failure pause, failedCount: ").concat(this.failedCount, ", for: ").concat(config_1.config.sendQueue.failure.pauseMinutes, " minute(s)"));
-            this.isPaused = true;
-            this.pausedTimeout = setTimeout(function () { return _this.clearPauseState(index); }, config_1.config.sendQueue.failure.pauseMinutes * 60 * 1000);
-        }
-    };
-    SendQueue.prototype.thread = function (index) {
-        return __awaiter(this, void 0, void 0, function () {
-            var rawmessage, envelope, mailOptions, err_1;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        if (!true) return [3 /*break*/, 10];
-                        return [4 /*yield*/, this.getJob(index)];
-                    case 1:
-                        rawmessage = _a.sent();
-                        logger_1.logger.debug("SEND-QUEUE ".concat(index, ": thread got a job with id: ").concat(rawmessage.id));
-                        return [4 /*yield*/, rawmessage.getHeader()];
-                    case 2:
-                        envelope = _a.sent();
-                        if (!(envelope !== null)) return [3 /*break*/, 8];
-                        logger_1.logger.debug("SEND-QUEUE ".concat(index, ": thread job with id: ").concat(rawmessage.id, ", parsed successfully"));
-                        mailOptions = {
-                            envelope: envelope,
-                            raw: {
-                                path: rawmessage.bodyFilePath
-                            }
-                        };
-                        _a.label = 3;
-                    case 3:
-                        _a.trys.push([3, 6, , 7]);
-                        if (rawmessage.simulatedErrorCount > 0) {
-                            rawmessage.simulatedErrorCount--;
-                            throw new Error("simulated error thrown");
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    if (!true) return [3 /*break*/, 10];
+                    return [4 /*yield*/, this.getJob(index)];
+                case 1:
+                    rawmessage = _a.sent();
+                    logger_1.logger.debug("SEND-QUEUE ".concat(index, ": thread got a job with id: ").concat(rawmessage.id));
+                    return [4 /*yield*/, rawmessage.getHeader()];
+                case 2:
+                    envelope = _a.sent();
+                    if (!(envelope !== null)) return [3 /*break*/, 8];
+                    logger_1.logger.debug("SEND-QUEUE ".concat(index, ": thread job with id: ").concat(rawmessage.id, ", parsed successfully"));
+                    mailOptions = {
+                        envelope: envelope,
+                        raw: {
+                            path: rawmessage.bodyFilePath
                         }
-                        return [4 /*yield*/, sender_1.sender.sendMail(mailOptions)];
-                    case 4:
-                        _a.sent();
-                        return [4 /*yield*/, rawmessage.remove()];
-                    case 5:
-                        _a.sent();
-                        logger_1.logger.debug("SEND-QUEUE ".concat(index, ": thread job with id: ").concat(rawmessage.id, ", removed"));
-                        this.reportSuccess(index, envelope.to);
-                        return [3 /*break*/, 7];
-                    case 6:
-                        err_1 = _a.sent();
-                        this.reportError(index, rawmessage, err_1.message, rawmessage.id);
-                        return [3 /*break*/, 7];
-                    case 7: return [3 /*break*/, 9];
-                    case 8:
-                        this.reportError(index, rawmessage, "unexpected error: unable to parse rawmessage header", rawmessage.id);
-                        _a.label = 9;
-                    case 9: return [3 /*break*/, 0];
-                    case 10: return [2 /*return*/];
-                }
-            });
+                    };
+                    _a.label = 3;
+                case 3:
+                    _a.trys.push([3, 6, , 7]);
+                    if (rawmessage.simulatedErrorCount > 0) {
+                        rawmessage.simulatedErrorCount--;
+                        throw new Error("simulated error thrown");
+                    }
+                    return [4 /*yield*/, sender_1.sender.sendMail(mailOptions)];
+                case 4:
+                    _a.sent();
+                    return [4 /*yield*/, rawmessage.remove()];
+                case 5:
+                    _a.sent();
+                    mqtt.recordEmailSent(false); // Add only this line to track successful sends
+                    logger_1.logger.debug("SEND-QUEUE ".concat(index, ": thread job with id: ").concat(rawmessage.id, ", removed"));
+                    this.reportSuccess(index, envelope.to);
+                    return [3 /*break*/, 7];
+                case 6:
+                    err_1 = _a.sent();
+                    this.reportError(index, rawmessage, err_1.message, rawmessage.id);
+                    return [3 /*break*/, 7];
+                case 7: return [3 /*break*/, 9];
+                case 8:
+                    this.reportError(index, rawmessage, "unexpected error: unable to parse rawmessage header", rawmessage.id);
+                    _a.label = 9;
+                case 9: return [3 /*break*/, 0];
+                case 10: return [2 /*return*/];
+            }
         });
-    };
-    SendQueue.prototype.start = function () {
-        return __awaiter(this, void 0, void 0, function () {
-            var i;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        logger_1.logger.debug("SEND-QUEUE unblocking any previously blocked raw messages");
-                        return [4 /*yield*/, jobs_1.Jobs.unblockAll()];
-                    case 1:
-                        _a.sent();
-                        logger_1.logger.debug("SEND-QUEUE starting queue with ".concat(config.sendQueue.threads, " threads"));
-                        for (i = 0; i < config.sendQueue.threads; i++)
-                            this.thread(i);
-                        return [2 /*return*/];
-                }
-            });
+    });
+};
+
+SendQueue.prototype.start = function () {
+    return __awaiter(this, void 0, void 0, function () {
+        var i;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    logger.debug("Unblocking any previously blocked messages");
+                    return [4 /*yield*/, jobs_1.Jobs.unblockAll()];
+                case 1:
+                    _a.sent();
+                    logger.info(`Starting send queue with ${config.sendQueue.threads} threads`);
+                    for (i = 0; i < config.sendQueue.threads; i++) {
+                        this.thread(i);
+                    }
+                    return [2 /*return*/];
+            }
         });
-    };
+    });
+};
     return SendQueue;
 }());
 

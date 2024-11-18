@@ -64,8 +64,8 @@ export const run = async () => {
         hideSTARTTLS: true
     });
         
-  incomingServer.listen(config.options.incoming_port, config.options.incoming_host, () => {
-    console.log(`incoming smtp server listening on ${config.options.incoming_host}:${config.options.incoming_port}`);
+incomingServer.listen(config.options.incoming_port ?? 5025, config.options.incoming_host || '0.0.0.0', () => {
+    console.log(`incoming smtp server listening on ${config.options.incoming_host || '0.0.0.0'}:${config.options.incoming_port ?? 5025}`);
     console.log();
   });    
 };

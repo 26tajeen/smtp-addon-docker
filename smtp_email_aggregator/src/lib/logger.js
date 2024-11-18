@@ -15,19 +15,21 @@ const myFormat = printf(({ level, message, timestamp }) => {
 const configTransports = [];
 
 // Check if logging configuration exists and add appropriate transports
-if (config_1.default && config_1.default.logging) {
+if (config_1.default && config_1.default.options) {
+    const logLevel = config_1.default.options.log_level || 'info';
+    
     configTransports.push(new winston_1.transports.Console({
-        level: config_1.default.logging.level || 'info'
+        level: logLevel
     }));
-}
 
-if (config_1.default && config_1.default.options && config_1.default.options.logging_combined_enabled) {
-    const logFilePath = (0, path_1.join)(paths_1.packagePath, config_1.default.options.logging_combined_file || 'logs/combined.log');
-    (0, fs_extra_1.ensureDirSync)((0, path_1.dirname)(logFilePath));
-    configTransports.push(new winston_1.transports.File({ 
-        filename: logFilePath,
-        level: config_1.default.logging?.level || 'info'
-    }));
+    if (config_1.default.options.logging_combined_enabled) {
+        const logFilePath = (0, path_1.join)(paths_1.packagePath, config_1.default.options.logging_combined_file || 'logs/combined.log');
+        (0, fs_extra_1.ensureDirSync)((0, path_1.dirname)(logFilePath));
+        configTransports.push(new winston_1.transports.File({ 
+            filename: logFilePath,
+            level: logLevel
+        }));
+    }
 }
 
 // If no transports were added, add a default console transport
@@ -54,5 +56,8 @@ exports.logger = {
     },
     debug: function (message) {
         _logger.debug(message);
+    },
+    warn: function (message) {
+        _logger.warn(message);
     }
 };

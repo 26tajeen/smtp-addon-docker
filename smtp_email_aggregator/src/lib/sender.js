@@ -1,31 +1,56 @@
-const nodemailer = require('nodemailer');
-const config = require('./config').default;
+const { logger } = require('./logger');
+const { transporter, transportConfig } = require('./smtp');
+const { mqtt } = require('./mqtt');
 
-// Read SMTP configuration from config
-const smtpConfig = {
-  host: config.options.outgoing_host,
-  port: config.options.outgoing_port,
-  secure: config.options.outgoing_secure,
-  auth: {
-    user: config.options.outgoing_auth_user,
-    pass: config.options.outgoing_auth_pass
-  }
+// Enhance the sendMail function with better logging and error handling
+const originalSendMail = transporter.sendMail.bind(transporter);
+transporter.sendMail = function(mailOptions) {
+    logger.debug('Sending email:', {
+        to: mailOptions.to,
+        from: mailOptions.from,
+        subject: mailOptions.subject,
+        hasAttachments: Boolean(mailOptions.attachments?.length),
+        smtpHost: transportConfig.host,
+        smtpPort: transportConfig.port
+    });
+
+    return originalSendMail(mailOptions)
+        .then((info) => {
+            logger.debug('Email sent successfully:', {
+                messageId: info.messageId,
+                response: info.response,
+                envelope: info.envelope
+            });
+            return info;
+        })
+        .catch((error) => {
+            const errorDetails = {
+                message: error.message,
+                code: error.code,
+                responseCode: error.responseCode,
+                response: error.response,
+                smtpHost: transportConfig.host,
+                smtpPort: transportConfig.port
+            };
+            
+            logger.error('Failed to send email:', errorDetails);
+            mqtt.reportError(`SMTP send failed: ${error.message}`);
+            
+            if (config.options.log_level === 'debug') {
+                logger.debug('Failed email details:', {
+                    to: mailOptions.to,
+                    from: mailOptions.from,
+                    subject: mailOptions.subject,
+                    error: error.stack,
+                    smtpHost: transportConfig.host,
+                    smtpPort: transportConfig.port
+                });
+            }
+            
+            throw error;
+        });
 };
 
-// Create transporter
-const transporter = nodemailer.createTransport(smtpConfig);
-
-// Log the configuration (without sensitive info) for debugging
-console.log('Outgoing SMTP Configuration:', {
-  host: smtpConfig.host,
-  port: smtpConfig.port,
-  secure: smtpConfig.secure,
-  auth: {
-    user: smtpConfig.auth.user ? '****' : 'not set',
-    pass: smtpConfig.auth.pass ? '****' : 'not set'
-  }
-});
-
 module.exports = {
-  sender: transporter
+    sender: transporter
 };

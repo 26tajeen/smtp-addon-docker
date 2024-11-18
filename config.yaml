@@ -1,6 +1,6 @@
-name: "SMTP Email Aggregator"
-version: "1.0.1"
-slug: "smtp_email_aggregator"
+name: "SMTP Email Aggregator MQTT"
+version: "1.0.3"
+slug: "smtp_email_aggregator_mqtt"
 init: false
 description: "SMTP server that aggregates and relays emails"
 url: "https://github.com/yourusername/smtp_email_aggregator_addon"
@@ -15,35 +15,69 @@ boot: auto
 ports:
   5025/tcp: 5025
 host_network: true
+services:
+  - mqtt:need
+schema:
+  smtp_mode: "list(production|mailpit)"
+  smtp_config_mailpit_host: "str?"
+  smtp_config_mailpit_port: "port?"
+  smtp_config_outgoing_host: "str?"
+  smtp_config_outgoing_port: "port?"
+  smtp_config_outgoing_secure: "bool?"
+  smtp_config_outgoing_auth_user: "str?"
+  smtp_config_outgoing_auth_pass: "password?"
+  incoming_host: "str"
+  incoming_port: "port"
+  aggregate_subject: "str"
+  aggregate_body_text: "str"
+  aggregate_wait_minutes: "int(1,60)"
+  aggregate_check_seconds: "int(1,60)"
+  queue_threads: "int(1,10)"
+  queue_poll_seconds: "int(1,60)"
+  queue_retry_count: "int(1,10)"
+  queue_pause_minutes: "int(1,60)"
+  postfix_enabled: "bool?"
+  postfix_relay_host: "str?"
+  postfix_sasl_auth_enabled: "bool?"
+  mqtt_error_topic: "str"
+  mqtt_stats_topic: "str"
+  mqtt_stats_interval: "int(60,3600)" 
+  postfix_sasl_security_options: "str?"
+  postfix_tls_security_level: "str?"
+  mqtt_error_topic: "str"
+  mqtt_stats_topic: "str"
+  mqtt_stats_interval: "int(60,3600)"
+  log_level: "list(trace|debug|info|notice|warning|error|fatal)"
 options:
-  outgoing_host: "smtp.example.com"
-  outgoing_port: 587
-  outgoing_secure: false
-  outgoing_auth_user: ""
-  outgoing_auth_pass: ""
+  mqtt_error_topic: "smtp_aggregator/errors"
+  mqtt_stats_topic: "smtp_aggregator/stats"
+  mqtt_stats_interval: 300  
+  smtp_mode: "mailpit"
+  smtp_config_mailpit_host: "192.168.0.188"
+  smtp_config_mailpit_port: 1025
+  smtp_config_outgoing_host: "smtp.example.com"
+  smtp_config_outgoing_port: 587
+  smtp_config_outgoing_secure: false
+  smtp_config_outgoing_auth_user: ""
+  smtp_config_outgoing_auth_pass: ""
   incoming_host: "0.0.0.0"
   incoming_port: 5025
   aggregate_subject: "Consolidated Invoice and Statement for {name}"
-  aggregate_bodyFile: "body.txt"
-  aggregate_waitForUpToMinutes: 5
-  aggregate_checkExpiryEverySeconds: 10
-  sendQueue_threads: 3
-  sendQueue_pollIntervalSeconds: 5
-  sendQueue_failure_retries: 5
-  sendQueue_failure_pauseMinutes: 1
-schema:
-  outgoing_host: str
-  outgoing_port: port
-  outgoing_secure: bool
-  outgoing_auth_user: str
-  outgoing_auth_pass: password
-  incoming_host: str
-  incoming_port: port
-  aggregate_subject: str
-  aggregate_bodyFile: str
-  aggregate_waitForUpToMinutes: int(1,)
-  aggregate_checkExpiryEverySeconds: int(1,)
-  sendQueue_threads: int(1,)
-  sendQueue_pollIntervalSeconds: int(1,)
-  sendQueue_failure_retries: int(1,)
-  sendQueue_failure_pauseMinutes: int(1,)
+  aggregate_body_text: "Dear {name},\n\nPlease find attached your latest invoices and statement.\n\nThank you for your business."
+  aggregate_wait_minutes: 5
+  aggregate_check_seconds: 10
+  queue_threads: 3
+  queue_poll_seconds: 5
+  queue_retry_count: 5
+  queue_pause_minutes: 1
+  mqtt_error_topic: "smtp_aggregator/errors"
+  mqtt_stats_topic: "smtp_aggregator/stats"
+  mqtt_stats_interval: 300
+  log_level: "info"
+mqtt:
+  discovery_prefix: "homeassistant"  # For HA discovery
+  device_name: "SMTP Email Aggregator"
+  device_id: "smtp_email_aggregator"
+  status_topic: "smtp_aggregator/status"
+  available_payload: "online"
+  unavailable_payload: "offline"  
