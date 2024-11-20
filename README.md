@@ -1,6 +1,6 @@
-# SMTP Email Aggregator Add-on
+# Home Assistant Add-on: Email Merger
 
-This add-on provides an SMTP server that aggregates and relays emails.
+This add-on provides an SMTP server that aggregates and relays emails it can and does forward mail to e.g. Gmail, or to a local pre-production testing environment.
 
 ## Features
 
